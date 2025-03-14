@@ -603,6 +603,7 @@ def train(cfg: DictConfig, out_dir: str | None = None, job_name: str | None = No
 
             for key in batch:
                 batch[key] = batch[key].to(cfg.device, non_blocking=True)
+                #print(batch[key].shape)
 
             train_info = update_policy(
                 policy,

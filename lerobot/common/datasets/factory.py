@@ -97,6 +97,8 @@ def make_dataset(cfg, split: str = "train") -> LeRobotDataset | MultiLeRobotData
             delta_timestamps=cfg.training.get("delta_timestamps"),
             image_transforms=image_transforms,
             video_backend=cfg.video_backend,
+            root=cfg.dataset_root,
+            local_files_only=cfg.dataset_local_files_only,
         )
     else:
         dataset = MultiLeRobotDataset(
