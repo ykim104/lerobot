@@ -4,9 +4,10 @@
 # python lerobot/scripts/train.py policy=diffusion_stretch_pickup env=stretch_pick
 
 seed: 100000
-dataset_repo_id: lerobot/stretch_pickup
-dataset_root: /media/yejinkim/Expansion/Ai2/data_generation/stretch3/StretchPickupTask/success_True/lerobot/stretch_pickup
+dataset_repo_id: lerobot_no_up/stretch_pickup_same_init
+dataset_root: /media/yejinkim/Expansion/Ai2/data_generation/stretch3_mobile_manip_w_head_cam/StretchPickupTask/success_True/lerobot/stretch_pickup_same_init
 dataset_local_files_only: 1
+
 
 training:
   offline_steps: 200000
@@ -15,12 +16,12 @@ training:
   save_freq: 500
   log_freq: 1 #250
   save_checkpoint: true
-
+  save_artifact: false #true
   batch_size: 128 #256 #128 #64 (256 broke down when using 3 cameras lol)
   grad_clip_norm: 10
   lr: 1.0e-4
   lr_scheduler: cosine
-  lr_warmup_steps: 1000 # 500
+  lr_warmup_steps: 500
   adam_betas: [0.95, 0.999]
   adam_eps: 1.0e-8
   adam_weight_decay: 1.0e-6
@@ -28,75 +29,78 @@ training:
 
   delta_timestamps:
     #observation.environment_state: "[i / ${fps} for i in range(1 - ${policy.n_obs_steps}, 1)]"
-    #observation.images.d435i_camera_rgb: "[i / ${fps} for i in range(1 - ${policy.n_obs_steps}, 1)]"
-    #observation.images.d405_rgb: "[i / ${fps} for i in range(1 - ${policy.n_obs_steps}, 1)]"
     observation.images.nav_camera_rgb: "[i / ${fps} for i in range(1 - ${policy.n_obs_steps}, 1)]"
+    observation.images.d435i_camera_rgb: "[i / ${fps} for i in range(1 - ${policy.n_obs_steps}, 1)]"
+    observation.images.d405_rgb: "[i / ${fps} for i in range(1 - ${policy.n_obs_steps}, 1)]"
     observation.state: "[i / ${fps} for i in range(1 - ${policy.n_obs_steps}, 1)]"
     action: "[i / ${fps} for i in range(1 - ${policy.n_obs_steps}, 1 - ${policy.n_obs_steps} + ${policy.horizon})]"
 
   # The original implementation doesn't sample frames for the last 7 steps,
   # which avoids excessive padding and leads to improved training results.
-  drop_n_last_frames: 7  # ${policy.horizon} - ${policy.n_action_steps} - ${policy.n_obs_steps} + 1
-
+  #drop_n_last_frames: 7  # ${policy.horizon} - ${policy.n_action_steps} - ${policy.n_obs_steps} + 1
+  drop_n_last_frames: 13 #21 # ${policy.horizon} - ${policy.n_action_steps} - ${policy.n_obs_steps} + 1 ]"
+  
 eval: # eval i have to in MujocoTHOR
   n_episodes: 0
   batch_size: 0
-
+   
 policy:
   name: diffusion
 
   # Input / output structure.
   n_obs_steps: 2
-  horizon: 16 # ValueError: The horizon should be an integer multiple of the downsampling factor (which is determined by `len(down_dims)`). Got self.horizon=2 and self.down_dims=(256, 512, 1024)
-  n_action_steps: 8
+  horizon: 16 #32 #16 # ValueError: The horizon should be an integer multiple of the downsampling factor (which is determined by `len(down_dims)`). Got self.horizon=2 and self.down_dims=(256, 512, 1024)
+          # 16 closes the gripper too soon
+  n_action_steps: 2 #2 seems better for sharp phase change of the gripper
 
   input_shapes:
-    #    cameras = ["d435i_camera_rgb", "d405_rgb", "nav_camera_rgb"]
+    # cameras = ["d435i_camera_rgb", "d405_rgb", "nav_camera_rgb"]
     # (96,96) (256,256) (3, 480, 640)
 
     # TODO(rcadene, alexander-soare): add variables for height and width from the dataset/env?
-    #observation.images.d435i_camera_rgb: [3, 96, 96 ] #[3, 480, 640] # [3, 96, 96 ] [3, 256, 256] #
-    #observation.images.d405_rgb: [3, 96, 96 ] #[3, 480, 640] # [3, 96, 96 ] [3, 256, 256] #
-    observation.images.nav_camera_rgb: [3, 96, 96 ] #[3, 480, 640] # [3, 96, 96 ]  [3, 256, 256] #
+    observation.images.nav_camera_rgb: [3, 128, 128 ] #[3, 480, 640] # [3, 96, 96 ]  [3, 256, 256] #
+    observation.images.d435i_camera_rgb: [3, 128, 128] #[3, 480, 640] # [3, 96, 96 ] [3, 256, 256] #
+    observation.images.d405_rgb: [3, 128, 128 ] #[3, 480, 640] # [3, 96, 96 ] [3, 256, 256] #
     observation.state: ["${env.state_dim}"]
+    #observation.environment_state: ["${env.state_dim}"]
   output_shapes:
     action: ["${env.action_dim}"]
 
   # Normalization / Unnormalization
   input_normalization_modes:
-    #observation.images.d435i_camera_rgb: mean_std
-    #observation.images.d405_rgb: mean_std
     observation.images.nav_camera_rgb: mean_std
-    observation.state: mean_std #min_max
+    observation.images.d435i_camera_rgb: mean_std
+    observation.images.d405_rgb: mean_std
+    observation.state: min_max #mean_std #min_max ??
   output_normalization_modes:
-    action: mean_std
+    action: min_max # mean_std # MIN MAX ?? 
 
   # Architecture / modeling.
   # Vision backbone.
   vision_backbone: resnet18
-  crop_shape: [84, 84] # for vision backbone. what about for bigger image size ??
+  crop_shape: [112, 112]  #[84, 84] # for vision backbone. what about for bigger image size ??
   crop_is_random: True
   pretrained_backbone_weights: null
   use_group_norm: True
   spatial_softmax_num_keypoints: 32
   # Unet.
-  down_dims: [256, 512, 1024]
+  down_dims: [512, 1024, 2048] #  [256, 512, 1024]
   kernel_size: 5
   n_groups: 8
-  diffusion_step_embed_dim: 128
+  diffusion_step_embed_dim: 256 #128
   use_film_scale_modulation: True
   # Noise scheduler.
   noise_scheduler_type: DDIM
-  num_train_timesteps: 100
+  num_train_timesteps: 1000 # 100
   beta_schedule: squaredcos_cap_v2
   beta_start: 0.0001
-  beta_end: 0.02
+  beta_end: 0.01 # 0.02
   prediction_type: epsilon # epsilon / sample
   clip_sample: True
   clip_sample_range: 1.0
 
   # Inference
-  num_inference_steps: 10  # if not provided, defaults to `num_train_timesteps`
+  num_inference_steps: 100 #10  # if not provided, defaults to `num_train_timesteps`
 
   # Loss computation
   do_mask_loss_for_padding: false

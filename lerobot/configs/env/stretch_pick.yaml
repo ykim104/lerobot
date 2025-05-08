@@ -5,11 +5,11 @@
 #    --dataset.repo_id=lerobot/stretch_pickup \
 #    --env.type=stretch_pickup \
 #    --output_dir=outputs/train/diffusion_stretch_pickup
-
+#    --output_dir=/media/yejinkim/Expansion/Ai2/train_outputs/lerobot_DP/diffusion_stretch_pickup
 fps: 10
 
 env:
-  name: stretch_pick
+  name: stretch_pickup_same_init
   task: StretchPick-v0
   state_dim: 11 # 11 # base_X, base_Y, base_theta, Lift, Extend, Wrist_yaw, Wrist_pitch, Wrist_roll, Gripper, Head_pan, Head_tilt
   action_dim: 11 #11
